@@ -13,9 +13,7 @@ public struct LooseEndpoint: Endpoint, Hashable {
         .GET
     }
 
-    public var requiresAuthorizationHeader: Bool {
-        false
-    }
+    public var requiresAuthorizationHeader: Bool = false
 
     /// Only interaction endpoints don't count against the global rate-limit.
     public var countsAgainstGlobalRateLimit: Bool {
