@@ -1,50 +1,40 @@
-import AsyncHTTPClient
 import Atomics
 /// Avoid `@tesatable` for `Discord***` targets just to make sure everything we use
 /// here is also accessible by the public (e.g. the initializers of different types)
 import DiscordBM
 import DiscordHTTP
 import NIOCore
+import NIOPosix
 import XCTest
 
 class DiscordClientTests: XCTestCase {
 
-    /// Don't change this to `HTTPClient.shared` to have a test for not using `HTTPClient.shared`.
-    let httpClient = HTTPClient()
     var client: (any DiscordClient)!
 
     let permanentTestCommandName = "permanent-test-command"
 
     override func setUp() async throws {
         self.client = await DefaultDiscordClient(
-            httpClient: httpClient,
             token: Constants.token,
             /// For not failing tests
             configuration: .init(retryPolicy: .init(backoff: .basedOnHeaders(maxAllowed: 10)))
         )
-        await GatewayTester.shared.increaseTestsRanThenStartIfNeeded(httpClient: httpClient)
+        await GatewayTester.shared.increaseTestsRanThenStartIfNeeded()
     }
 
     override func tearDown() async throws {
         await GatewayTester.shared.endIfNeeded()
     }
 
-    /// Can't use the async `shutdown()` in `tearDown()`. Will get `Fatal error: leaking promise created at (file: "NIOPosix/HappyEyeballs.swift", line: 300)`
-    deinit {
-        try! httpClient.syncShutdown()
-    }
-
     func testAppIdSetting() async throws {
         /// Tests that it can extract an app-id from a bot-token even if not provided.
         let client1 = await DefaultDiscordClient(
-            httpClient: httpClient,
             token: Constants.token
         )
         XCTAssertEqual(client1.appId?.rawValue, Constants.botId.rawValue)
 
         /// Tests that the provided app-id overrides the bot-token-extracted app-id
         let client2 = await DefaultDiscordClient(
-            httpClient: httpClient,
             token: Constants.token,
             appId: ApplicationSnowflake("000")
         )
@@ -3053,15 +3043,14 @@ private actor GatewayTester {
         self.botManagerAlreadySetUp.toggle()
     }
 
-    func increaseTestsRanThenStartIfNeeded(httpClient: HTTPClient) async {
+    func increaseTestsRanThenStartIfNeeded() async {
         self.testsRan += 1
 
         if !self.botManagerAlreadySetUp {
             self.toggleBotManagerAlreadySetUp()
 
             self.bot = await BotGatewayManager(
-                eventLoopGroup: httpClient.eventLoopGroup,
-                httpClient: httpClient,
+                eventLoopGroup: NIOSingletons.posixEventLoopGroup,
                 token: Constants.token,
                 appId: Snowflake(Constants.botId),
                 intents: Gateway.Intent.allCases

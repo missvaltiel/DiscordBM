@@ -1,11 +1,12 @@
-import AsyncHTTPClient
 import DiscordBM
+import DiscordHTTP
 import Logging
+import NIOPosix
 import XCTest
 
 class PermissionChecker: XCTestCase {
 
-    let httpClient = HTTPClient()
+    let eventLoopGroup = MultiThreadedEventLoopGroup.singleton
 
     override func setUp() {
         DiscordGlobalConfiguration.makeLogger = {
@@ -19,19 +20,13 @@ class PermissionChecker: XCTestCase {
         DiscordGlobalConfiguration.makeLogger = { Logger(label: $0) }
     }
 
-    /// Can't use the async `shutdown()` in `tearDown()`. Will get `Fatal error: leaking promise created at (file: "NIOPosix/HappyEyeballs.swift", line: 300)`
-    deinit {
-        try! httpClient.syncShutdown()
-    }
-
     /// Checks to see if the permission checker functions work properly.
     func testCheckPermissions() async throws {
         /// Make sure last tests don't affect this test's gateway connection
         try await Task.sleep(for: .seconds(5))
 
         let bot = await BotGatewayManager(
-            eventLoopGroup: httpClient.eventLoopGroup,
-            httpClient: httpClient,
+            eventLoopGroup: eventLoopGroup,
             token: Constants.token,
             appId: Snowflake(Constants.botId),
             presence: .init(

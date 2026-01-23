@@ -1,4 +1,3 @@
-import AsyncHTTPClient
 import Atomics
 import DiscordHTTP
 import DiscordModels
@@ -111,15 +110,15 @@ public actor ShardingGatewayManager: GatewayManager {
 
     /// - Parameters:
     ///   - eventLoopGroup: An `EventLoopGroup`.
-    ///   - httpClient: A `HTTPClient`.
+    ///   - executor: An ``HTTPExecutor`` for making HTTP requests.
     ///   - configuration: shard-management configuration.
     ///   - clientConfiguration: Configuration of the `DiscordClient`.
     ///   - maxFrameSize: Max frame size the WebSocket should allow receiving.
     ///   - appId: Your Discord application-id. If not provided, it'll be extracted from bot-token.
     ///   - identifyPayload: The identification payload that is sent to Discord.
     public init(
-        eventLoopGroup: any EventLoopGroup = HTTPClient.shared.eventLoopGroup,
-        httpClient: HTTPClient = .shared,
+        eventLoopGroup: any EventLoopGroup,
+        executor: any HTTPExecutor = HTTPExecutorFactory.createDefault(),
         configuration: Configuration = .init(),
         clientConfiguration: ClientConfiguration = .init(),
         maxFrameSize: Int = 1 << 28,
@@ -128,7 +127,7 @@ public actor ShardingGatewayManager: GatewayManager {
     ) async {
         self.eventLoopGroup = eventLoopGroup
         self.client = await DefaultDiscordClient(
-            httpClient: httpClient,
+            executor: executor,
             token: identifyPayload.token,
             appId: appId,
             configuration: clientConfiguration
@@ -146,7 +145,7 @@ public actor ShardingGatewayManager: GatewayManager {
 
     /// - Parameters:
     ///   - eventLoopGroup: An `EventLoopGroup`.
-    ///   - httpClient: A `HTTPClient`.
+    ///   - executor: An ``HTTPExecutor`` for making HTTP requests.
     ///   - configuration: shard-management configuration.
     ///   - clientConfiguration: Configuration of the `DiscordClient`.
     ///   - maxFrameSize: Max frame size the WebSocket should allow receiving.
@@ -157,8 +156,8 @@ public actor ShardingGatewayManager: GatewayManager {
     ///   - presence: The initial presence of the bot.
     ///   - intents: The Discord intents you want to receive messages for.
     public init(
-        eventLoopGroup: any EventLoopGroup = HTTPClient.shared.eventLoopGroup,
-        httpClient: HTTPClient = .shared,
+        eventLoopGroup: any EventLoopGroup,
+        executor: any HTTPExecutor = HTTPExecutorFactory.createDefault(),
         configuration: Configuration = .init(),
         clientConfiguration: ClientConfiguration = .init(),
         maxFrameSize: Int = 1 << 28,
@@ -171,7 +170,7 @@ public actor ShardingGatewayManager: GatewayManager {
         let token = Secret(token)
         self.eventLoopGroup = eventLoopGroup
         self.client = await DefaultDiscordClient(
-            httpClient: httpClient,
+            executor: executor,
             token: token,
             appId: appId,
             configuration: clientConfiguration

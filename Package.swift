@@ -42,9 +42,10 @@ let package = Package(
         ),
     ],
     dependencies: [
+        // Removed async-http-client to avoid BoringSSL/swift-nio-ssl Windows issues
+        // Using URLSession for HTTP requests on all platforms
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.49.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.2"),
-        .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.21.0"),
         .package(url: "https://github.com/vapor/multipart-kit.git", from: "4.5.3"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.5"),
         .package(url: "https://github.com/apple/swift-syntax.git", "509.0.0"..<"604.0.0"),
@@ -75,7 +76,7 @@ let package = Package(
         .target(
             name: "DiscordHTTP",
             dependencies: [
-                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                // Removed AsyncHTTPClient - using URLSession instead
                 .target(name: "DiscordModels"),
             ],
             swiftSettings: swiftSettings
@@ -84,7 +85,7 @@ let package = Package(
             name: "DiscordGateway",
             dependencies: [
                 .product(name: "NIOCore", package: "swift-nio"),
-                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                // Removed AsyncHTTPClient - using URLSession instead
                 .product(name: "WSClient", package: "swift-websocket"),
                 .product(name: "libzstd", package: "zstd"),
                 .target(name: "DiscordHTTP"),

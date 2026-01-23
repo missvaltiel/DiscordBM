@@ -1,4 +1,3 @@
-import AsyncHTTPClient
 import Atomics
 import DiscordModels
 import Foundation
@@ -8,7 +7,7 @@ import NIOFoundationCompat
 import NIOHTTP1
 
 public struct DefaultDiscordClient: DiscordClient {
-    public let client: HTTPClient
+    public let executor: any HTTPExecutor
     public let authentication: AuthenticationHeader
     public let appId: ApplicationSnowflake?
     public let configuration: ClientConfiguration
@@ -33,18 +32,18 @@ public struct DefaultDiscordClient: DiscordClient {
     static let rateLimiter = HTTPRateLimiter(label: "DiscordClientRateLimiter")
 
     /// - Parameters:
-    ///   - httpClient: A ``HTTPClient``.
+    ///   - executor: An ``HTTPExecutor`` for making HTTP requests. Defaults to URLSession.
     ///   - token: Must be a **bot token**.
     ///   - appId: Your Discord application-id. If not provided, it'll be extracted from bot token.
     ///   This is used as a default when no app-id is passed to a ``DiscordClient`` function.
     ///   - configuration: The configuration affecting this ``DefaultDiscordClient``.
     public init(
-        httpClient: HTTPClient = .shared,
+        executor: any HTTPExecutor = URLSessionHTTPExecutor.shared,
         token: Secret,
         appId: ApplicationSnowflake? = nil,
         configuration: ClientConfiguration = .init()
     ) async {
-        self.client = httpClient
+        self.executor = executor
         self.authentication = .botToken(token)
         self.appId = appId ?? self.authentication.extractAppIdIfAvailable()
         self.configuration = configuration
@@ -52,18 +51,18 @@ public struct DefaultDiscordClient: DiscordClient {
     }
 
     /// - Parameters:
-    ///   - httpClient: A ``HTTPClient``.
+    ///   - executor: An ``HTTPExecutor`` for making HTTP requests. Defaults to URLSession.
     ///   - token: Must be a **bot token**.
     ///   - appId: Your Discord application-id. If not provided, it'll be extracted from bot token.
     ///   This is used as a default when no app-id is passed to a ``DiscordClient`` function.
     ///   - configuration: The configuration affecting this ``DefaultDiscordClient``.
     public init(
-        httpClient: HTTPClient = .shared,
+        executor: any HTTPExecutor = URLSessionHTTPExecutor.shared,
         token: String,
         appId: ApplicationSnowflake? = nil,
         configuration: ClientConfiguration = .init()
     ) async {
-        self.client = httpClient
+        self.executor = executor
         self.authentication = .botToken(Secret(token))
         self.appId = appId ?? self.authentication.extractAppIdIfAvailable()
         self.configuration = configuration
@@ -71,18 +70,18 @@ public struct DefaultDiscordClient: DiscordClient {
     }
 
     /// - Parameters:
-    ///   - httpClient: A ``HTTPClient``.
+    ///   - executor: An ``HTTPExecutor`` for making HTTP requests. Defaults to URLSession.
     ///   - oAuthToken: Must be an **OAuth token**.
     ///   - appId: Your Discord application-id. It **can't** be extracted from the token, if not provided.
     ///   This is used as a default when no app-id is passed to a ``DiscordClient`` function.
     ///   - configuration: The configuration affecting this ``DefaultDiscordClient``.
     public init(
-        httpClient: HTTPClient = .shared,
+        executor: any HTTPExecutor = URLSessionHTTPExecutor.shared,
         oAuthToken: Secret,
         appId: ApplicationSnowflake? = nil,
         configuration: ClientConfiguration = .init()
     ) async {
-        self.client = httpClient
+        self.executor = executor
         self.authentication = .oAuthToken(oAuthToken)
         /// OAuth tokens don't contain an app-id to extract
         self.appId = appId
@@ -91,18 +90,18 @@ public struct DefaultDiscordClient: DiscordClient {
     }
 
     /// - Parameters:
-    ///   - httpClient: A ``HTTPClient``.
+    ///   - executor: An ``HTTPExecutor`` for making HTTP requests. Defaults to URLSession.
     ///   - oAuthToken: Must be an **OAuth token**.
     ///   - appId: Your Discord application-id. It **can't** be extracted from the token, if not provided.
     ///   This is used as a default when no app-id is passed to a ``DiscordClient`` function.
     ///   - configuration: The configuration affecting this ``DefaultDiscordClient``.
     public init(
-        httpClient: HTTPClient = .shared,
+        executor: any HTTPExecutor = URLSessionHTTPExecutor.shared,
         oAuthToken: String,
         appId: ApplicationSnowflake? = nil,
         configuration: ClientConfiguration = .init()
     ) async {
-        self.client = httpClient
+        self.executor = executor
         self.authentication = .oAuthToken(Secret(oAuthToken))
         /// OAuth tokens don't contain an app-id to extract
         self.appId = appId
@@ -111,7 +110,7 @@ public struct DefaultDiscordClient: DiscordClient {
     }
 
     /// - Parameters:
-    ///   - httpClient: A ``HTTPClient``.
+    ///   - executor: An ``HTTPExecutor`` for making HTTP requests. Defaults to URLSession.
     ///   - authentication: The authentication method when sending requests to Discord.
     ///   - appId: Your Discord application-id.
     ///   If `authentication` is a **bot** token, the app-id will be extracted from bot token.
@@ -119,12 +118,12 @@ public struct DefaultDiscordClient: DiscordClient {
     ///   This is used as a default when no app-id is passed to a ``DiscordClient`` function.
     ///   - configuration: The configuration affecting this ``DefaultDiscordClient``.
     public init(
-        httpClient: HTTPClient = .shared,
+        executor: any HTTPExecutor = URLSessionHTTPExecutor.shared,
         authentication: AuthenticationHeader,
         appId: ApplicationSnowflake? = nil,
         configuration: ClientConfiguration = .init()
     ) async {
-        self.client = httpClient
+        self.executor = executor
         self.authentication = authentication
         self.appId = appId ?? self.authentication.extractAppIdIfAvailable()
         self.configuration = configuration
@@ -273,16 +272,22 @@ public struct DefaultDiscordClient: DiscordClient {
     }
 
     @usableFromInline
-    func execute(_ request: HTTPClient.Request) async throws -> DiscordHTTPResponse {
-        DiscordHTTPResponse(
-            _response: try await self.client.execute(
-                request: request,
-                deadline: .now() + configuration.requestTimeoutAmount,
-                logger: configuration.enableLoggingForRequests
-                    ? DiscordGlobalConfiguration.makeLogger("DBM+HTTPClient")
-                    : Logger(label: "DBM-no-op-logger", factory: SwiftLogNoOpLogHandler.init)
-            ).get()
+    func executeRequest(
+        url: String,
+        method: String,
+        headers: [String: String],
+        body: Data?
+    ) async throws -> DiscordHTTPResponse {
+        let response = try await self.executor.execute(
+            url: url,
+            method: method,
+            headers: headers,
+            body: body,
+            timeoutSeconds: Double(configuration.requestTimeoutAmount.nanoseconds) / 1_000_000_000
         )
+        // Extract host from URL
+        let host = URL(string: url)?.host ?? "discord.com"
+        return DiscordHTTPResponse(from: response, host: host)
     }
 
     /// Waits for the next retry if needed, and increases the retry counter.
@@ -412,28 +417,39 @@ public struct DefaultDiscordClient: DiscordClient {
                 requestId: requestId,
                 retriesSoFar: retryCounter
             )
-            var request = try HTTPClient.Request(
-                url: req.endpoint.url + req.queries.makeForURLQuery(),
-                method: req.endpoint.httpMethod
-            )
-            request.headers = req.headers
-            request.headers.add(name: "User-Agent", value: userAgent)
+
+            let url = req.endpoint.url + req.queries.makeForURLQuery()
+            let method = req.endpoint.httpMethod.rawValue
+
+            // Build headers dictionary for URLSession executor
+            var headersDict: [String: String] = [:]
+            for header in req.headers {
+                headersDict[header.name] = header.value
+            }
+            headersDict["User-Agent"] = userAgent
             if req.endpoint.requiresAuthorizationHeader {
-                try self.authentication.addHeader(headers: &request.headers, request: req)
+                var tempHeaders = req.headers
+                try self.authentication.addHeader(headers: &tempHeaders, request: req)
+                for header in tempHeaders {
+                    headersDict[header.name] = header.value
+                }
             }
 
             logger.debug(
                 "Will send a request to Discord",
                 metadata: [
-                    "url": .stringConvertible(
-                        req.endpoint.urlDescription + req.queries.makeForURLQuery()
-                    ),
-                    "method": .string(request.method.rawValue),
+                    "url": .stringConvertible(req.endpoint.urlDescription + req.queries.makeForURLQuery()),
+                    "method": .string(method),
                     "retry": .stringConvertible(retryCounter),
                     "request-id": .stringConvertible(requestId),
                 ]
             )
-            let response = try await self.execute(request)
+            let response = try await self.executeRequest(
+                url: url,
+                method: method,
+                headers: headersDict,
+                body: nil
+            )
             logger.debug(
                 "Received a response from Discord",
                 metadata: [
@@ -500,32 +516,40 @@ public struct DefaultDiscordClient: DiscordClient {
             )
 
             let data = try DiscordGlobalConfiguration.encoder.encode(payload)
-            var request = try HTTPClient.Request(
-                url: req.endpoint.url + req.queries.makeForURLQuery(),
-                method: req.endpoint.httpMethod
-            )
-            request.headers = req.headers
-            request.headers.add(name: "User-Agent", value: userAgent)
-            request.headers.replaceOrAdd(name: "Content-Type", value: "application/json")
-            if req.endpoint.requiresAuthorizationHeader {
-                try self.authentication.addHeader(headers: &request.headers, request: req)
-            }
+            let url = req.endpoint.url + req.queries.makeForURLQuery()
+            let method = req.endpoint.httpMethod.rawValue
 
-            request.body = .bytes(data)
+            // Build headers dictionary for URLSession executor
+            var headersDict: [String: String] = [:]
+            for header in req.headers {
+                headersDict[header.name] = header.value
+            }
+            headersDict["User-Agent"] = userAgent
+            headersDict["Content-Type"] = "application/json"
+            if req.endpoint.requiresAuthorizationHeader {
+                var tempHeaders = req.headers
+                try self.authentication.addHeader(headers: &tempHeaders, request: req)
+                for header in tempHeaders {
+                    headersDict[header.name] = header.value
+                }
+            }
 
             logger.debug(
                 "Will send a request to Discord",
                 metadata: [
                     "body": .string(String(data: data, encoding: .utf8) ?? "nil"),
-                    "url": .stringConvertible(
-                        req.endpoint.urlDescription + req.queries.makeForURLQuery()
-                    ),
-                    "method": .string(request.method.rawValue),
+                    "url": .stringConvertible(req.endpoint.urlDescription + req.queries.makeForURLQuery()),
+                    "method": .string(method),
                     "retry": .stringConvertible(retryCounter),
                     "request-id": .stringConvertible(requestId),
                 ]
             )
-            let response = try await self.execute(request)
+            let response = try await self.executeRequest(
+                url: url,
+                method: method,
+                headers: headersDict,
+                body: data
+            )
             logger.debug(
                 "Received a response from Discord",
                 metadata: [
@@ -600,32 +624,42 @@ public struct DefaultDiscordClient: DiscordClient {
                 contentType = "application/json"
                 buffer = ByteBuffer(data: try DiscordGlobalConfiguration.encoder.encode(payload))
             }
-            var request = try HTTPClient.Request(
-                url: req.endpoint.url + req.queries.makeForURLQuery(),
-                method: req.endpoint.httpMethod
-            )
-            request.headers = req.headers
-            request.headers.add(name: "User-Agent", value: userAgent)
-            request.headers.replaceOrAdd(name: "Content-Type", value: contentType)
-            if req.endpoint.requiresAuthorizationHeader {
-                try self.authentication.addHeader(headers: &request.headers, request: req)
-            }
 
-            request.body = .byteBuffer(buffer)
+            let url = req.endpoint.url + req.queries.makeForURLQuery()
+            let method = req.endpoint.httpMethod.rawValue
+            let bodyData = Data(buffer: buffer)
+
+            // Build headers dictionary for URLSession executor
+            var headersDict: [String: String] = [:]
+            for header in req.headers {
+                headersDict[header.name] = header.value
+            }
+            headersDict["User-Agent"] = userAgent
+            headersDict["Content-Type"] = contentType
+            if req.endpoint.requiresAuthorizationHeader {
+                var tempHeaders = req.headers
+                try self.authentication.addHeader(headers: &tempHeaders, request: req)
+                for header in tempHeaders {
+                    headersDict[header.name] = header.value
+                }
+            }
 
             logger.debug(
                 "Will send a request to Discord",
                 metadata: [
                     "body": .string(String(buffer: buffer)),
-                    "url": .stringConvertible(
-                        req.endpoint.urlDescription + req.queries.makeForURLQuery()
-                    ),
-                    "method": .string(request.method.rawValue),
+                    "url": .stringConvertible(req.endpoint.urlDescription + req.queries.makeForURLQuery()),
+                    "method": .string(method),
                     "retry": .stringConvertible(retryCounter),
                     "request-id": .stringConvertible(requestId),
                 ]
             )
-            let response = try await self.execute(request)
+            let response = try await self.executeRequest(
+                url: url,
+                method: method,
+                headers: headersDict,
+                body: bodyData
+            )
             logger.debug(
                 "Received a response from Discord",
                 metadata: [

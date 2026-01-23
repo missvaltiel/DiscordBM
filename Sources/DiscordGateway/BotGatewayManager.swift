@@ -1,5 +1,5 @@
-import AsyncHTTPClient
 import Atomics
+import DiscordHTTP
 import DiscordModels
 import Foundation
 import Logging
@@ -182,14 +182,14 @@ public actor BotGatewayManager: GatewayManager {
 
     /// - Parameters:
     ///   - eventLoopGroup: An `EventLoopGroup`.
-    ///   - httpClient: A `HTTPClient`.
+    ///   - executor: An ``HTTPExecutor`` for making HTTP requests.
     ///   - clientConfiguration: Configuration of the `DiscordClient`.
     ///   - maxFrameSize: Max frame size the WebSocket should allow receiving.
     ///   - appId: Your Discord application-id. If not provided, it'll be extracted from bot-token.
     ///   - identifyPayload: The identification payload that is sent to Discord.
     public init(
-        eventLoopGroup: any EventLoopGroup = HTTPClient.shared.eventLoopGroup,
-        httpClient: HTTPClient = .shared,
+        eventLoopGroup: any EventLoopGroup,
+        executor: any HTTPExecutor = HTTPExecutorFactory.createDefault(),
         clientConfiguration: ClientConfiguration = .init(),
         websocketProxy: WebSocketProxySettings? = nil,
         maxFrameSize: Int = 1 << 28,
@@ -198,7 +198,7 @@ public actor BotGatewayManager: GatewayManager {
     ) async {
         self.eventLoopGroup = eventLoopGroup
         self.client = await DefaultDiscordClient(
-            httpClient: httpClient,
+            executor: executor,
             token: identifyPayload.token,
             appId: appId,
             configuration: clientConfiguration
@@ -224,7 +224,7 @@ public actor BotGatewayManager: GatewayManager {
 
     /// - Parameters:
     ///   - eventLoopGroup: An `EventLoopGroup`.
-    ///   - httpClient: A `HTTPClient`.
+    ///   - executor: An ``HTTPExecutor`` for making HTTP requests.
     ///   - clientConfiguration: Configuration of the `DiscordClient`.
     ///   - maxFrameSize: Max frame size the WebSocket should allow receiving.
     ///   - token: Your Discord bot-token.
@@ -234,8 +234,8 @@ public actor BotGatewayManager: GatewayManager {
     ///   - presence: The initial presence of the bot.
     ///   - intents: The Discord intents you want to receive messages for.
     public init(
-        eventLoopGroup: any EventLoopGroup = HTTPClient.shared.eventLoopGroup,
-        httpClient: HTTPClient = .shared,
+        eventLoopGroup: any EventLoopGroup,
+        executor: any HTTPExecutor = HTTPExecutorFactory.createDefault(),
         clientConfiguration: ClientConfiguration = .init(),
         websocketProxy: WebSocketProxySettings? = nil,
         maxFrameSize: Int = 1 << 28,
@@ -248,7 +248,7 @@ public actor BotGatewayManager: GatewayManager {
         let token = Secret(token)
         self.eventLoopGroup = eventLoopGroup
         self.client = await DefaultDiscordClient(
-            httpClient: httpClient,
+            executor: executor,
             token: token,
             appId: appId,
             configuration: clientConfiguration

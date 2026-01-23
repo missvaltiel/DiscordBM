@@ -1,15 +1,15 @@
-import AsyncHTTPClient
 import Atomics
+import DiscordHTTP
 import Foundation
 import Logging
+import NIOPosix
 import XCTest
 
 @testable import DiscordGateway
 
 class GatewayConnectionTests: XCTestCase, @unchecked Sendable {
 
-    /// Don't use `HTTPClient.shared` to test not using it.
-    let httpClient = HTTPClient()
+    let eventLoopGroup = MultiThreadedEventLoopGroup.singleton
 
     override func setUp() {
         DiscordGlobalConfiguration.makeLogger = {
@@ -21,11 +21,6 @@ class GatewayConnectionTests: XCTestCase, @unchecked Sendable {
 
     override func tearDown() async throws {
         DiscordGlobalConfiguration.makeLogger = { Logger(label: $0) }
-    }
-
-    /// Can't use the async `shutdown()` in `tearDown()`. Will get `Fatal error: leaking promise created at (file: "NIOPosix/HappyEyeballs.swift", line: 300)`
-    deinit {
-        try! httpClient.syncShutdown()
     }
 
     @available(*, deprecated, message: "To avoid deprecation warnings for 'makeEventsParseFailureStream'")
@@ -121,8 +116,7 @@ class GatewayConnectionTests: XCTestCase, @unchecked Sendable {
         let shardCount = 20
 
         let bot: any GatewayManager = await ShardingGatewayManager(
-            eventLoopGroup: self.httpClient.eventLoopGroup,
-            httpClient: self.httpClient,
+            eventLoopGroup: self.eventLoopGroup,
             configuration: .init(
                 shardCount: .exact(shardCount),
                 makeIntents: { _, _ in Gateway.Intent.allCases }
@@ -182,8 +176,7 @@ class GatewayConnectionTests: XCTestCase, @unchecked Sendable {
         }
 
         let bot = await BotGatewayManager(
-            eventLoopGroup: httpClient.eventLoopGroup,
-            httpClient: httpClient,
+            eventLoopGroup: eventLoopGroup,
             token: Constants.token.dropLast(4) + "aaaa",
             presence: .init(
                 activities: [.init(name: "Testing!", type: .competing)],
@@ -240,8 +233,7 @@ class GatewayConnectionTests: XCTestCase, @unchecked Sendable {
         try await Task.sleep(for: .seconds(5))
 
         let bot = await BotGatewayManager(
-            eventLoopGroup: httpClient.eventLoopGroup,
-            httpClient: httpClient,
+            eventLoopGroup: eventLoopGroup,
             token: Constants.token,
             presence: .init(
                 activities: [.init(name: "Test Activity!", type: .competing)],
