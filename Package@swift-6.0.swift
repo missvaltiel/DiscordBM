@@ -42,16 +42,15 @@ let package = Package(
         ),
     ],
     dependencies: [
-        // Removed async-http-client to avoid BoringSSL/swift-nio-ssl Windows issues
-        // Using URLSession for HTTP requests on all platforms
+        // Removed async-http-client and swift-websocket to avoid BoringSSL/swift-nio-ssl Windows issues
+        // Using URLSession for HTTP requests and WebSocket on all platforms
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.49.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.2"),
         .package(url: "https://github.com/vapor/multipart-kit.git", from: "4.5.3"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.5"),
         .package(url: "https://github.com/apple/swift-syntax.git", "509.0.0"..<"604.0.0"),
         .package(url: "https://github.com/facebook/zstd.git", from: "1.5.7"),
-        .package(url: "https://github.com/hummingbird-project/swift-websocket.git", from: "1.4.0"),
-    ],
+        .package(path: "../compress-nio"),    ],
     targets: [
         .target(
             name: "DiscordBM",
@@ -85,9 +84,9 @@ let package = Package(
             name: "DiscordGateway",
             dependencies: [
                 .product(name: "NIOCore", package: "swift-nio"),
-                // Removed AsyncHTTPClient - using URLSession instead
-                .product(name: "WSClient", package: "swift-websocket"),
                 .product(name: "libzstd", package: "zstd"),
+                // Removed AsyncHTTPClient and WSClient - using URLSession for both HTTP and WebSocket
+                .product(name: "CompressNIO", package: "compress-nio"),
                 .target(name: "DiscordHTTP"),
             ],
             swiftSettings: swiftSettings

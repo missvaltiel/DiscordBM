@@ -3,11 +3,7 @@ import DiscordHTTP
 import DiscordModels
 import Foundation
 import Logging
-import NIO
-import WSClient
-
-import enum NIOWebSocket.WebSocketErrorCode
-import struct NIOWebSocket.WebSocketOpcode
+import NIOCore
 
 public actor BotGatewayManager: GatewayManager {
 
@@ -27,13 +23,13 @@ public actor BotGatewayManager: GatewayManager {
 
     private struct Message {
         let payload: Gateway.Event
-        let opcode: WebSocketOpcode?
+        let opcode: URLSessionWSOpcode?
         let connectionId: UInt?
         var tryCount: Int
 
         init(
             payload: Gateway.Event,
-            opcode: WebSocketOpcode? = nil,
+            opcode: URLSessionWSOpcode? = nil,
             connectionId: UInt? = nil,
             tryCount: Int = 0
         ) {
@@ -44,7 +40,8 @@ public actor BotGatewayManager: GatewayManager {
         }
     }
 
-    var outboundWriter: WebSocketOutboundWriter?
+    var outboundWriter: URLSessionWSOutboundWriter?
+    var webSocketTask: URLSessionWebSocketTask?
     let eventLoopGroup: any EventLoopGroup
     /// A client to send requests to Discord.
     public nonisolated let client: any DiscordClient
@@ -298,24 +295,9 @@ public actor BotGatewayManager: GatewayManager {
         let queries: [(String, String)] = [
             ("v", "\(DiscordGlobalConfiguration.apiVersion)"),
             ("encoding", "json"),
-            ("compress", "zstd-stream"),
+            ("compress", "zlib-stream"),
         ]
 
-        let decompressorWSExtension: ZstdDecompressorWSExtension
-        do {
-            decompressorWSExtension = try ZstdDecompressorWSExtension(logger: self.logger)
-        } catch {
-            self.logger.critical(
-                "Will not connect because can't create a decompressor. Something is wrong. Please report this failure at https://github.com/DiscordBM/DiscordBM/issues",
-                metadata: ["error": .string(String(reflecting: error))]
-            )
-            return
-        }
-
-        let configuration = WebSocketClientConfiguration(
-            maxFrameSize: self.maxFrameSize,
-            extensions: [.nonNegotiatedExtension { decompressorWSExtension }]
-        )
         logger.trace("Will try to connect to Discord through web-socket")
         let connectionId = self.connectionId.wrappingIncrementThenLoad(ordering: .relaxed)
         /// FIXME: remove this `Task` in a future major version.
@@ -323,37 +305,22 @@ public actor BotGatewayManager: GatewayManager {
         /// But for proper structured concurrency, this method should never exit (optimally).
         Task {
             do {
-                typealias HandlerType = WebSocketDataHandler<WebSocketClient.Context>
-                let handler: HandlerType = { inbound, outbound, context in
-                    await self.setupOutboundWriter(outbound)
+                let (inbound, outbound, task, _) = try await URLSessionWSClient.connect(
+                    url: gatewayURL + queries.makeForURLQuery(),
+                    useCompression: true,
+                    logger: self.logger
+                )
 
-                    self.logger.debug("Connected to Discord through web-socket. Will configure")
-                    self.state.store(.configured, ordering: .relaxed)
+                await self.setupOutboundWriter(outbound, task: task)
 
-                    for try await message in inbound.messages(maxSize: self.maxFrameSize) {
-                        await self.processBinaryData(message, forConnectionWithId: connectionId)
-                    }
-                }
-                let closeFrame: WebSocketCloseFrame?
-                if let proxySettings = self.websocketProxy {
-                    closeFrame = try await WebSocketClient.connect(
-                        url: gatewayURL + queries.makeForURLQuery(),
-                        configuration: configuration,
-                        proxySettings: proxySettings,
-                        eventLoopGroup: self.eventLoopGroup,
-                        logger: self.logger,
-                        handler: handler
-                    )
-                } else {
-                    closeFrame = try await WebSocketClient.connect(
-                        url: gatewayURL + queries.makeForURLQuery(),
-                        configuration: configuration,
-                        eventLoopGroup: self.eventLoopGroup,
-                        logger: self.logger,
-                        handler: handler
-                    )
+                self.logger.debug("Connected to Discord through web-socket. Will configure")
+                self.state.store(.configured, ordering: .relaxed)
+
+                for try await message in inbound {
+                    await self.processBinaryData(message, forConnectionWithId: connectionId)
                 }
 
+                let closeFrame = task.currentCloseFrame
                 logger.debug(
                     "web-socket connection closed",
                     metadata: [
@@ -577,11 +544,10 @@ extension BotGatewayManager {
                 )
             )
         )
-        let opcode = Gateway.Opcode.identify
         self.send(
             message: .init(
                 payload: resume,
-                opcode: .init(encodedWebSocketOpcode: opcode.rawValue)!
+                opcode: .text
             )
         )
 
@@ -603,7 +569,7 @@ extension BotGatewayManager {
     }
 
     private func processBinaryData(
-        _ message: WebSocketMessage,
+        _ message: URLSessionWSMessage,
         forConnectionWithId connectionId: UInt
     ) {
         guard self.connectionId.load(ordering: .relaxed) == connectionId else { return }
@@ -658,7 +624,7 @@ extension BotGatewayManager {
     }
 
     private enum CloseReason {
-        case closeFrame(WebSocketCloseFrame?)
+        case closeFrame(URLSessionWSCloseFrame?)
         case error(any Error)
     }
 
@@ -706,7 +672,7 @@ extension BotGatewayManager {
 
     private nonisolated func getCloseCodeAndDescription(
         of closeReason: CloseReason
-    ) -> (WebSocketErrorCode?, String) {
+    ) -> (URLSessionWSCloseCode?, String) {
         switch closeReason {
         case .error(let error):
             return (nil, String(reflecting: error))
@@ -731,7 +697,7 @@ extension BotGatewayManager {
         }
     }
 
-    private nonisolated func canTryReconnect(code: WebSocketErrorCode?) -> Bool {
+    private nonisolated func canTryReconnect(code: URLSessionWSCloseCode?) -> Bool {
         switch code {
         case let .unknown(codeNumber):
             guard let discordCode = GatewayCloseCode(rawValue: codeNumber) else { return true }
@@ -840,7 +806,7 @@ extension BotGatewayManager {
             }
             Task {
                 // If the message has no specified opcode, default to sending .text
-                let opcode: WebSocketOpcode = message.opcode ?? .text
+                let opcode: URLSessionWSOpcode = message.opcode ?? .text
 
                 let data: Data
                 do {
@@ -850,7 +816,7 @@ extension BotGatewayManager {
                         "Could not encode payload",
                         metadata: [
                             "payload": .string("\(message.payload)"),
-                            "opcode": .stringConvertible(opcode),
+                            "opcode": .stringConvertible(opcode.rawValue),
                             "connectionId": .stringConvertible(self.connectionId.load(ordering: .relaxed)),
                         ]
                     )
@@ -869,33 +835,27 @@ extension BotGatewayManager {
                             "Will send a payload",
                             metadata: [
                                 "payload": .string("\(message.payload)"),
-                                "opcode": .stringConvertible(opcode),
+                                "opcode": .stringConvertible(opcode.rawValue),
                             ]
                         )
                         try await outboundWriter.write(
                             .custom(
-                                .init(
-                                    fin: true,
-                                    opcode: opcode,
-                                    data: ByteBuffer(data: data)
-                                )
+                                fin: true,
+                                opcode: opcode,
+                                data: ByteBuffer(data: data)
                             )
                         )
                     } catch {
-                        if let channelError = error as? ChannelError,
-                            case .ioOnClosedChannel = channelError
-                        {
+                        if case URLSessionWSError.connectionClosed = error {
                             self.logger.error(
-                                "Received 'ChannelError.ioOnClosedChannel' error while sending payload through web-socket. Will fully disconnect and reconnect again"
+                                "Connection closed error while sending payload through web-socket. Will fully disconnect and reconnect again"
                             )
                             await self.disconnect()
                             await self.connect()
-                        } else if message.payload.opcode == .heartbeat,
-                            let writerError = error as? NIOAsyncWriterError,
-                            writerError == .alreadyFinished()
-                        {
+                        } else if message.payload.opcode == .heartbeat {
                             self.logger.debug(
-                                "Received 'NIOAsyncWriterError.alreadyFinished' error while sending heartbeat through web-socket. Will ignore"
+                                "Error while sending heartbeat through web-socket. Will ignore",
+                                metadata: ["error": .string(String(reflecting: error))]
                             )
                         } else {
                             self.logger.error(
@@ -903,7 +863,7 @@ extension BotGatewayManager {
                                 metadata: [
                                     "error": .string(String(reflecting: error)),
                                     "payload": .string("\(message.payload)"),
-                                    "opcode": .stringConvertible(opcode),
+                                    "opcode": .stringConvertible(opcode.rawValue),
                                     "state": .stringConvertible(self.state.load(ordering: .relaxed)),
                                     "connectionId": .stringConvertible(self.connectionId.load(ordering: .relaxed)),
                                 ]
@@ -956,8 +916,9 @@ extension BotGatewayManager {
         }
     }
 
-    func setupOutboundWriter(_ outboundWriter: WebSocketOutboundWriter) {
+    func setupOutboundWriter(_ outboundWriter: URLSessionWSOutboundWriter, task: URLSessionWebSocketTask) {
         self.outboundWriter = outboundWriter
+        self.webSocketTask = task
     }
 
     private func closeWebSocket() async {
@@ -973,6 +934,7 @@ extension BotGatewayManager {
             )
         }
         self.outboundWriter = nil
+        self.webSocketTask = nil
     }
 }
 

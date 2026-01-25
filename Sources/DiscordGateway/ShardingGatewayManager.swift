@@ -2,7 +2,7 @@ import Atomics
 import DiscordHTTP
 import DiscordModels
 import Logging
-import NIO
+import NIOCore
 
 public actor ShardingGatewayManager: GatewayManager {
 
