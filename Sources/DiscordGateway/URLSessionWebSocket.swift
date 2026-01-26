@@ -1,5 +1,8 @@
 import CompressNIO
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Logging
 import NIOCore
 
@@ -240,7 +243,7 @@ public struct URLSessionWSInboundStream: AsyncSequence {
         private func decompress(buffer: inout ByteBuffer, using decompressor: ZlibDecompressor) throws -> ByteBuffer {
             let compressedBytes = buffer.readableBytes
             var output = ByteBuffer()
-            output.reserveCapacity(max(4096, compressedBytes * 8))
+            output.reserveCapacity(Swift.max(4096, compressedBytes * 8))
 
             while true {
                 do {

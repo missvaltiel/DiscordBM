@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Factory for creating platform-appropriate HTTP executors
 public enum HTTPExecutorFactory {

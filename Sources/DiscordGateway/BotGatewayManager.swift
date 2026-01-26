@@ -2,6 +2,9 @@ import Atomics
 import DiscordHTTP
 import DiscordModels
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Logging
 import NIOCore
 
@@ -684,7 +687,7 @@ extension BotGatewayManager {
             let description: String
             switch code {
             case let .unknown(codeNumber):
-                switch GatewayCloseCode(rawValue: codeNumber) {
+                switch GatewayCloseCode(rawValue: UInt16(codeNumber)) {
                 case let .some(discordCode):
                     description = "\(discordCode)"
                 case .none:
@@ -700,7 +703,7 @@ extension BotGatewayManager {
     private nonisolated func canTryReconnect(code: URLSessionWSCloseCode?) -> Bool {
         switch code {
         case let .unknown(codeNumber):
-            guard let discordCode = GatewayCloseCode(rawValue: codeNumber) else { return true }
+            guard let discordCode = GatewayCloseCode(rawValue: UInt16(codeNumber)) else { return true }
             return discordCode.canTryReconnect
         default: return true
         }
