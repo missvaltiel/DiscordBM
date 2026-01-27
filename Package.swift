@@ -44,8 +44,8 @@ let package = Package(
     dependencies: [
         // Removed async-http-client and swift-websocket to avoid BoringSSL/swift-nio-ssl Windows issues
         // Using URLSession for HTTP requests and WebSocket on all platforms
-        // Using fork with Windows Swift 6 fixes (IPPROTO enum cast, WindowsThreadHandle Sendable wrapper)
-        .package(url: "https://github.com/missvaltiel/swift-nio.git", branch: "main"),
+        // Using local fork with Windows Swift 6 fixes (IPPROTO enum cast, WindowsThreadHandle Sendable wrapper)
+        .package(path: "../swift-nio"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.2"),
         .package(url: "https://github.com/vapor/multipart-kit.git", from: "4.5.3"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.5"),

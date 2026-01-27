@@ -1,10 +1,11 @@
 import CompressNIO
 import Foundation
+import Logging
+import NIOCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Logging
-import NIOCore
 
 /// WebSocket message types for URLSession-based WebSocket
 public enum URLSessionWSMessage: Sendable {
@@ -169,8 +170,8 @@ public enum URLSessionWSOpcode: UInt8, Sendable {
 public enum URLSessionWSError: Error, Sendable {
     case connectionClosed
     case invalidURL
-    case connectionFailed(Error)
-    case decompressFailed(Error)
+    case connectionFailed(any Error)
+    case decompressFailed(any Error)
 }
 
 /// Inbound message stream with zlib decompression support
@@ -219,9 +220,12 @@ public struct URLSessionWSInboundStream: AsyncSequence {
                             let decompressed = try decompress(buffer: &buffer, using: decompressor)
                             return .binary(decompressed)
                         } catch {
-                            logger.warning("Decompression failed, returning raw data", metadata: [
-                                "error": .string(String(describing: error))
-                            ])
+                            logger.warning(
+                                "Decompression failed, returning raw data",
+                                metadata: [
+                                    "error": .string(String(describing: error))
+                                ]
+                            )
                             return .binary(ByteBuffer(data: data))
                         }
                     }
@@ -233,7 +237,7 @@ public struct URLSessionWSInboundStream: AsyncSequence {
                 }
             } catch {
                 // Connection closed or error
-                if (error as NSError).code == 57 { // Socket not connected
+                if (error as NSError).code == 57 {  // Socket not connected
                     return nil
                 }
                 throw error
@@ -300,7 +304,8 @@ public final class URLSessionWSClient: @unchecked Sendable {
 extension URLSessionWebSocketTask {
     var currentCloseFrame: URLSessionWSCloseFrame? {
         guard let closeCode = self.closeCode as URLSessionWebSocketTask.CloseCode?,
-              closeCode.rawValue != -1 else {
+            closeCode.rawValue != -1
+        else {
             return nil
         }
         let reason = self.closeReason.flatMap { String(data: $0, encoding: .utf8) }
