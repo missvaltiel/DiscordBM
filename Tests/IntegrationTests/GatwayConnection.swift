@@ -30,6 +30,7 @@ class GatewayConnectionTests: XCTestCase, @unchecked Sendable {
 
         /// Also tests with default `HTTPClient.shared` and `HTTPClient.shared.eventLoopGroup`.
         let bot = await BotGatewayManager(
+            eventLoopGroup: self.eventLoopGroup, // Add this
             token: Constants.token,
             presence: .init(
                 activities: [.init(name: "Testing!", type: .competing)],

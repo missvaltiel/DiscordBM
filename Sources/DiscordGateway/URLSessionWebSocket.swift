@@ -41,7 +41,7 @@ public enum URLSessionWSCloseCode: Sendable, Equatable {
     case unexpectedServerError
     case unknown(Int)
 
-    init(from urlSessionCode: URLSessionWebSocketTask.CloseCode) {
+init(from urlSessionCode: URLSessionWebSocketTask.CloseCode) {
         switch urlSessionCode {
         case .normalClosure: self = .normalClosure
         case .goingAway: self = .goingAway
@@ -55,6 +55,8 @@ public enum URLSessionWSCloseCode: Sendable, Equatable {
         case .mandatoryExtensionMissing: self = .mandatoryExtensionMissing
         case .internalServerError: self = .internalServerError
         case .tlsHandshakeFailure: self = .tlsHandshakeFailure
+        // Handle the new '.invalid' case and any future additions
+        case .invalid: self = .abnormalClosure 
         @unknown default: self = .unknown(urlSessionCode.rawValue)
         }
     }
@@ -118,18 +120,19 @@ public actor URLSessionWSOutboundWriter {
         case .text(let string):
             message = .string(string)
         case .binary(let buffer):
-            message = .data(Data(buffer: buffer))
-        case .custom(let fin, let opcode, let data):
-            // URLSession doesn't support custom frames directly
-            // Map to appropriate message type based on opcode
+            // FIX: Use readableBytesView
+            message = .data(Data(buffer.readableBytesView))
+        case .custom(_, let opcode, let data):
             if opcode == .text {
-                if let string = String(data: Data(buffer: data), encoding: .utf8) {
+                // FIX: Use readableBytesView
+                if let string = String(data: Data(data.readableBytesView), encoding: .utf8) {
                     message = .string(string)
                 } else {
-                    message = .data(Data(buffer: data))
+                    message = .data(Data(data.readableBytesView))
                 }
             } else {
-                message = .data(Data(buffer: data))
+                // FIX: Use readableBytesView
+                message = .data(Data(data.readableBytesView))
             }
         }
 
@@ -212,7 +215,7 @@ public struct URLSessionWSInboundStream: AsyncSequence {
                     return .text(text)
 
                 case .data(let data):
-                    var buffer = ByteBuffer(data: data)
+                    var buffer = ByteBuffer(bytes: data)
 
                     // If we have a decompressor and the data looks compressed, decompress it
                     if let decompressor = decompressor, !data.isEmpty {
@@ -226,7 +229,7 @@ public struct URLSessionWSInboundStream: AsyncSequence {
                                     "error": .string(String(describing: error))
                                 ]
                             )
-                            return .binary(ByteBuffer(data: data))
+                            return .binary(ByteBuffer(bytes: data))
                         }
                     }
 

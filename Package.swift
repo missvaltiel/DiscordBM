@@ -47,11 +47,13 @@ let package = Package(
         // Using local fork with Windows Swift 6 fixes (IPPROTO enum cast, WindowsThreadHandle Sendable wrapper)
         .package(path: "../swift-nio"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.2"),
-        .package(url: "https://github.com/vapor/multipart-kit.git", from: "4.5.3"),
+        // Removing MultipartKit for cross-platform support
+        // .package(url: "https://github.com/vapor/multipart-kit.git", from: "4.5.3"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.5"),
         .package(url: "https://github.com/apple/swift-syntax.git", "509.0.0"..<"604.0.0"),
         // Using local fork with Windows uLong type fix
         .package(path: "../compress-nio"),
+        .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
     ],
     targets: [
         .target(
@@ -69,8 +71,9 @@ let package = Package(
         .target(
             name: "DiscordCore",
             dependencies: [
-                .product(name: "Logging", package: "swift-log"),
-                .product(name: "MultipartKit", package: "multipart-kit"),
+                .product(name: "Logging", package: "swift-log")
+                // Removing MultipartKit for cross-platform support
+                // .product(name: "MultipartKit", package: "multipart-kit"),
             ],
             swiftSettings: swiftSettings
         ),
@@ -79,6 +82,7 @@ let package = Package(
             dependencies: [
                 // Removed AsyncHTTPClient - using URLSession instead
                 .target(name: "DiscordModels"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
             ],
             swiftSettings: swiftSettings
         ),
@@ -88,6 +92,7 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "CompressNIO", package: "compress-nio"),
                 // Removed AsyncHTTPClient and WSClient - using URLSession for both HTTP and WebSocket
+                .product(name: "OrderedCollections", package: "swift-collections"),
                 .target(name: "DiscordHTTP"),
             ],
             swiftSettings: swiftSettings
@@ -95,8 +100,9 @@ let package = Package(
         .target(
             name: "DiscordModels",
             dependencies: [
-                .product(name: "NIOFoundationCompat", package: "swift-nio"),
-                .product(name: "MultipartKit", package: "multipart-kit"),
+                // Removing MultipartKit for cross-platform support
+                // .product(name: "NIOFoundationCompat", package: "swift-nio"),
+                // .product(name: "MultipartKit", package: "multipart-kit"),
                 .target(name: "DiscordCore"),
                 .target(name: "UnstableEnumMacro"),
             ],

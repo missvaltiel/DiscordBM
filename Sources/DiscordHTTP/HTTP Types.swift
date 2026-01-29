@@ -1,6 +1,5 @@
 import DiscordModels
 import Foundation
-import NIOFoundationCompat
 import NIOHTTP1
 
 import struct NIOCore.ByteBuffer
@@ -80,7 +79,7 @@ public struct DiscordHTTPResponse: Sendable, CustomStringConvertible {
         self.headers = httpHeaders
 
         if let data = executorResponse.body {
-            self.body = ByteBuffer(data: data)
+            self.body = ByteBuffer(bytes: data)
         } else {
             self.body = nil
         }
@@ -92,7 +91,7 @@ public struct DiscordHTTPResponse: Sendable, CustomStringConvertible {
             + "status: \(status), "
             + "version: \(version), "
             + "headers: \(headers), "
-            + "body: \(body.map({ String(buffer: $0) }) ?? "nil")"
+            + "body: \(body.map({ String(decoding: $0.readableBytesView, as: UTF8.self) }) ?? "nil")"
             + ")"
     }
 
@@ -150,8 +149,7 @@ public struct DiscordHTTPResponse: Sendable, CustomStringConvertible {
     /// Doesn't check for success of the response
     @usableFromInline
     func _decode<D: Decodable>(as _: D.Type = D.self) throws -> D {
-        if let data = body.map({ Data(buffer: $0, byteTransferStrategy: .noCopy) }) {
-            do {
+    if let data = body.map({ Data($0.readableBytesView) }) {            do {
                 return try DiscordGlobalConfiguration.decoder.decode(D.self, from: data)
             } catch {
                 throw DiscordHTTPError.decodingError(
@@ -247,7 +245,7 @@ public struct DiscordCDNResponse: Sendable, CustomStringConvertible {
             throw DiscordHTTPError.noContentTypeHeader(httpResponse)
         }
         let name = overrideName ?? fallbackFileName
-        return RawFile(data: body, nameNoExtension: name, contentType: contentType)
+        return RawFile(data: Data(body.readableBytesView), nameNoExtension: name, contentType: contentType)
     }
 }
 

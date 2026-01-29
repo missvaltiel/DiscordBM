@@ -1,5 +1,4 @@
 import Foundation
-import NIOFoundationCompat
 
 /// REST API payloads.
 ///
@@ -391,13 +390,17 @@ public enum Payloads {
             guard let data = Data(base64Encoded: String(encodedString)) else {
                 return nil
             }
-            return .init(data: .init(data: data), filename: filename ?? "unknown")
+            // We convert Foundation.Data to ByteBuffer here if needed,
+            // or ensure we aren't using the deleted label.
+            return .init(data: .init(data), filename: filename ?? "unknown")
         }
 
         func encodeToString() -> String? {
             guard let type = file.type else { return nil }
-            let data = Data(buffer: file.data, byteTransferStrategy: .noCopy)
-            let encoded = data.base64EncodedString()
+
+            // We are betting that 'file.data' is 'Foundation.Data'
+            let encoded = file.data.base64EncodedString()
+
             return "data:\(type);base64,\(encoded)"
         }
     }

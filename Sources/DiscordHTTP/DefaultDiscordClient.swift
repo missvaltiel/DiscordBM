@@ -3,7 +3,6 @@ import DiscordModels
 import Foundation
 import Logging
 import NIOCore
-import NIOFoundationCompat
 import NIOHTTP1
 
 public struct DefaultDiscordClient: DiscordClient {
@@ -615,19 +614,31 @@ public struct DefaultDiscordClient: DiscordClient {
                 retriesSoFar: retryCounter
             )
 
+            // Removed as we are not longer using MultipartKit
+            // let contentType: String
+            // let buffer: ByteBuffer
+            // if let multipart = try payload.encodeMultipart() {
+            //     contentType = "multipart/form-data; boundary=\(MultipartConfiguration.boundary)"
+            //     buffer = multipart
+            // } else {
+            //     contentType = "application/json"
+            //     buffer = ByteBuffer(data: try DiscordGlobalConfiguration.encoder.encode(payload))
+            // }
+
             let contentType: String
-            let buffer: ByteBuffer
+            let bodyData: Data
             if let multipart = try payload.encodeMultipart() {
-                contentType = "multipart/form-data; boundary=\(MultipartConfiguration.boundary)"
-                buffer = multipart
+                // Use the unique boundary returned by our new encoder
+                contentType = "multipart/form-data; boundary=\(multipart.boundary)"
+                bodyData = multipart.data
             } else {
+                // Fallback to standard JSON if no files were actually present
                 contentType = "application/json"
-                buffer = ByteBuffer(data: try DiscordGlobalConfiguration.encoder.encode(payload))
+                bodyData = try DiscordGlobalConfiguration.encoder.encode(payload)
             }
 
             let url = req.endpoint.url + req.queries.makeForURLQuery()
             let method = req.endpoint.httpMethod.rawValue
-            let bodyData = Data(buffer: buffer)
 
             // Build headers dictionary for URLSession executor
             var headersDict: [String: String] = [:]
@@ -647,7 +658,9 @@ public struct DefaultDiscordClient: DiscordClient {
             logger.debug(
                 "Will send a request to Discord",
                 metadata: [
-                    "body": .string(String(buffer: buffer)),
+                    // Updating as part of MultipartKit removal
+                    // "body": .string(String(buffer: buffer)),
+                    "body": .string(String(data: bodyData, encoding: .utf8) ?? "binary/multipart data"),
                     "url": .stringConvertible(req.endpoint.urlDescription + req.queries.makeForURLQuery()),
                     "method": .string(method),
                     "retry": .stringConvertible(retryCounter),

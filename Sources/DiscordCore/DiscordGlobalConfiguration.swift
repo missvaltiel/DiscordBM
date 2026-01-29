@@ -1,6 +1,5 @@
 import Foundation
 import Logging
-import MultipartKit
 
 /// The point of this storage is to disable Sendable warnings when using
 /// `-strict-concurrency=complete`

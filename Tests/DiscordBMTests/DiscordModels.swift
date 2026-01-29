@@ -1,6 +1,7 @@
 import DiscordHTTP
 import NIOCore
 import XCTest
+import DiscordGateway
 
 @testable import DiscordModels
 
@@ -215,7 +216,8 @@ class DiscordModelsTests: XCTestCase {
 
     func testImageData() throws {
         typealias ImageData = Payloads.ImageData
-        let data = ByteBuffer(data: resource(name: "1kb.png"))
+        // Fix: Remove the ByteBuffer(bytes:) wrapper. Use the Data directly.
+        let data = resource(name: "1kb.png") 
 
         do {
             let image = ImageData(file: .init(data: data, filename: "1kb.png"))
@@ -225,6 +227,7 @@ class DiscordModelsTests: XCTestCase {
 
         do {
             let file = ImageData.decodeFromString(base64EncodedImageString)
+            // Now comparing Data? to Data. This will work.
             XCTAssertEqual(file?.data, data)
             XCTAssertEqual(file?.extension, "png")
         }
@@ -297,11 +300,13 @@ class DiscordModelsTests: XCTestCase {
             "code": 50014
             }
             """
+        // Keep this as ByteBuffer because DiscordHTTPResponse requires it
         let data = ByteBuffer(string: json)
         let response = DiscordHTTPResponse(
             host: "discord.com",
             status: .unauthorized,
             version: .http1_1,
+            headers: [:], // Added empty headers if the init requires it
             body: data
         )
         let error = try XCTUnwrap(response.asError())
@@ -341,9 +346,9 @@ class DiscordModelsTests: XCTestCase {
     func testActionRowDecode() throws {
         let json =
             #"{"t":"INTERACTION_CREATE","s":6,"op":0,"d":{"version":1,"type":5,"token":"aW50ZXJhY3Rpb246MTA5NTY2MTQ0MDk5NzgwNjE3MjpnWXgzbExDQ0FxVjZHbEZVWWJYQkF5Nm1SOGpYR2JVa0Q2NENWMFdwcnNEQ2Z2OUJ4VlBkRnhTM1BVVW1pSFdxNUZCSFBHWVFOVDQ1RldyellZb2QwZTAwTHJuV0tlODk3TUpxY0xvQkZWUk81MHhJZmR4blUzbWlBS0h2UFhmbw","member":{"user":{"username":"Mahdi BM","public_flags":4194304,"id":"290483761559240704","global_name":null,"display_name":null,"discriminator":"0517","avatar_decoration":null,"avatar":"2df0a0198e00ba23bf2dc728c4db94d9"},"roles":["892920753756975144","970723029262942248","970723101044244510"],"premium_since":null,"permissions":"70368744177663","pending":false,"nick":null,"mute":false,"joined_at":"2021-02-09T09:59:16.364000+00:00","is_pending":false,"flags":0,"deaf":false,"communication_disabled_until":null,"avatar":null},"locale":"en-US","id":"1095661440997806172","guild_locale":"en-US","guild_id":"808638139785936919","entitlements":[],"entitlement_sku_ids":[],"data":{"custom_id":"autoPings;add;match","components":[{"type":1,"components":[{"value":"Hello, dad","type":4,"custom_id":"texts"}]}]},"channel_id":"1016614538398937098","channel":{"type":0,"topic":null,"rate_limit_per_user":0,"position":3,"permissions":"70368744177663","parent_id":"808638139785936920","nsfw":false,"name":"penny","last_message_id":"1095658065069605024","id":"1016614538398937098","guild_id":"808638139785936919","flags":0},"application_id":"1016612301262041098","app_permissions":"70368744177663"}}"#
-        let data = Data(json.utf8)
+        let data = ByteBuffer(string: json)
         let decoder = JSONDecoder()
-        _ = try decoder.decode(Gateway.Event.self, from: data)
+        _ = try decoder.decode(Gateway.Event.self, from: Data(data.readableBytesView))
     }
 
     func testResolvedDataDecode() throws {

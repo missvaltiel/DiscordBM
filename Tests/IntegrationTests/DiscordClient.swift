@@ -795,7 +795,7 @@ class DiscordClientTests: XCTestCase {
             userId: Constants.personalId,
             avatar: avatar
         ).getFile()
-        XCTAssertGreaterThan(file.data.readableBytes, 100)
+        XCTAssertGreaterThan(file.data.count, 100)
 
         /// Can't add anyone since don't have access token.
         let addMemberError = try await client.addGuildMember(
@@ -1036,13 +1036,13 @@ class DiscordClientTests: XCTestCase {
         }
 
         /// Create Emoji
-        let image = ByteBuffer(data: resource(name: "1kb.png"))
+        let image = ByteBuffer(bytes: resource(name: "1kb.png"))
         let emoji = try await client.createGuildEmoji(
             guildId: Constants.guildId,
             reason: "Creating Emoji Test!",
             payload: .init(
                 name: "testemoji",
-                image: .init(file: .init(data: image, filename: "1kb_emoji.png")),
+                image: .init(file: .init(data: Data(image.readableBytesView), filename: "1kb_emoji.png")),
                 roles: []
             )
         ).decode()
@@ -1121,14 +1121,14 @@ class DiscordClientTests: XCTestCase {
             .getGuildWidgetPng(guildId: Constants.guildId)
             .getFile()
 
-        XCTAssertGreaterThan(widgetPng1.data.readableBytes, 100)
+        XCTAssertGreaterThan(widgetPng1.data.count, 100)
 
         let widgetPng2 =
             try await client
             .getGuildWidgetPng(guildId: Constants.guildId, style: .banner4)
             .getFile()
 
-        XCTAssertGreaterThan(widgetPng2.data.readableBytes, 100)
+        XCTAssertGreaterThan(widgetPng2.data.count, 100)
 
         let updatedWidget2 = try await client.updateGuildWidgetSettings(
             guildId: Constants.guildId,
@@ -1214,7 +1214,7 @@ class DiscordClientTests: XCTestCase {
     }
 
     func testGuildScheduledEvents() async throws {
-        let image = ByteBuffer(data: resource(name: "discordbm-logo.png"))
+        let image = ByteBuffer(bytes: resource(name: "discordbm-logo.png"))
         let created1 = try await client.createGuildScheduledEvent(
             guildId: Constants.guildId,
             reason: "Test Creating Scheduled Events!",
@@ -1227,7 +1227,7 @@ class DiscordClientTests: XCTestCase {
                 scheduled_end_time: .init(date: Date().addingTimeInterval(600)),
                 description: "Testing Scheduled Events!",
                 entity_type: .external,
-                image: .init(file: .init(data: image, filename: "discordbm.png"))
+                image: .init(file: .init(data: Data(image.readableBytesView), filename: "discordbm.png"))
             )
         ).decode()
 
@@ -1243,7 +1243,7 @@ class DiscordClientTests: XCTestCase {
                 scheduled_end_time: .init(date: Date().addingTimeInterval(600)),
                 description: "Testing Scheduled Events!",
                 entity_type: .voice,
-                image: .init(file: .init(data: image, filename: "discordbm.png"))
+                image: .init(file: .init(data: Data(image.readableBytesView), filename: "discordbm.png"))
             )
         ).decode()
 
@@ -1259,7 +1259,7 @@ class DiscordClientTests: XCTestCase {
                 scheduled_end_time: .init(date: Date().addingTimeInterval(600)),
                 description: "Testing Scheduled Events!",
                 entity_type: .stageInstance,
-                image: .init(file: .init(data: image, filename: "discordbm.png"))
+                image: .init(file: .init(data: Data(image.readableBytesView), filename: "discordbm.png"))
             )
         ).decode()
 
@@ -1271,7 +1271,7 @@ class DiscordClientTests: XCTestCase {
             cover: imageHash
         ).getFile()
 
-        XCTAssertGreaterThan(eventCover.data.readableBytes, 100)
+        XCTAssertGreaterThan(eventCover.data.count, 100)
 
         let eventsWithCount = try await client.listGuildScheduledEvents(
             guildId: Constants.guildId,
@@ -1533,7 +1533,7 @@ class DiscordClientTests: XCTestCase {
     }
 
     func testStickers() async throws {
-        let image = ByteBuffer(data: resource(name: "discordbm-logo.png"))
+        let image = ByteBuffer(bytes: resource(name: "discordbm-logo.png"))
 
         let createdSticker = try await client.createGuildSticker(
             guildId: Constants.guildId,
@@ -1542,7 +1542,7 @@ class DiscordClientTests: XCTestCase {
                 name: "DiscordBM",
                 description: "DiscordBM sticker test!",
                 tags: "DiscordBM",
-                file: .init(data: image, filename: "DiscordBM.png")
+                file: .init(data: Data(image.readableBytesView), filename: "DiscordBM.png")
             )
         ).decode()
 
@@ -1612,7 +1612,7 @@ class DiscordClientTests: XCTestCase {
             .getCDNStickerPackBanner(assetId: firstPack.banner_asset_id!)
             .getFile()
 
-        XCTAssertGreaterThan(packBanner.data.readableBytes, 100)
+        XCTAssertGreaterThan(packBanner.data.count, 100)
     }
 
     func testVoice() async throws {
@@ -1671,10 +1671,10 @@ class DiscordClientTests: XCTestCase {
 
         XCTAssertEqual(selfApplication.id.rawValue, Constants.botId.rawValue)
 
-        let image = ByteBuffer(data: resource(name: "1kb.png"))
+        let image = ByteBuffer(bytes: resource(name: "1kb.png"))
         let imageData = Payloads.ImageData(
             file: .init(
-                data: image,
+                data: Data(image.readableBytesView),
                 filename: "test_image.png"
             )
         )
@@ -1706,11 +1706,11 @@ class DiscordClientTests: XCTestCase {
         XCTAssertEqual(user.id, Constants.secondAccountId)
 
         do {
-            let image = ByteBuffer(data: resource(name: "1kb.png"))
+            let image = ByteBuffer(bytes: resource(name: "1kb.png"))
             let updatedUser = try await client.updateOwnUser(
                 payload: .init(
                     username: "DisBMTestLib\(Int.random(in: 0..<100))",
-                    avatar: .init(file: .init(data: image, filename: "1kb.png"))
+                    avatar: .init(file: .init(data: Data(image.readableBytesView), filename: "1kb.png"))
                 )
             ).decode()
 
@@ -2026,8 +2026,8 @@ class DiscordClientTests: XCTestCase {
             }
         }
 
-        let image1 = ByteBuffer(data: resource(name: "discordbm-logo.png"))
-        let image2 = ByteBuffer(data: resource(name: "1kb.png"))
+        let image1 = ByteBuffer(bytes: resource(name: "discordbm-logo.png"))
+        let image2 = ByteBuffer(bytes: resource(name: "1kb.png"))
 
         let webhookName1 = "TestWebhook1"
 
@@ -2035,7 +2035,7 @@ class DiscordClientTests: XCTestCase {
             channelId: Constants.Channels.webhooks.id,
             payload: .init(
                 name: webhookName1,
-                avatar: .init(file: .init(data: image1, filename: "DiscordBM.png"))
+                avatar: .init(file: .init(data: Data(image1.readableBytesView), filename: "DiscordBM.png"))
             )
         ).decode()
 
@@ -2110,7 +2110,7 @@ class DiscordClientTests: XCTestCase {
             id: webhook1.id,
             payload: .init(
                 name: webhookNewName1,
-                avatar: .init(file: .init(data: image2, filename: "1kb.png")),
+                avatar: .init(file: .init(data: Data(image2.readableBytesView), filename: "1kb.png")),
                 channel_id: Constants.Channels.webhooks2.id
             )
         ).decode()
@@ -2176,7 +2176,7 @@ class DiscordClientTests: XCTestCase {
 
         XCTAssertEqual(getMessage.id, message.id)
         XCTAssertEqual(getMessage.content, message.content)
-        XCTAssertEqual(getMessage.embeds.map(\.title), message.embeds.map(\.title))
+        XCTAssertEqual(getMessage.embeds.map(\Embed.title), message.embeds.map(\Embed.title))
 
         let newText = "Testing Edit! \(Date())"
         let editThreadMessage = try await client.updateWebhookMessage(
@@ -2461,7 +2461,7 @@ class DiscordClientTests: XCTestCase {
             let file = try await client.getCDNCustomEmoji(
                 emojiId: "1073704788400820324"
             ).getFile()
-            XCTAssertGreaterThan(file.data.readableBytes, 100)
+            XCTAssertGreaterThan(file.data.count, 100)
             XCTAssertEqual(file.extension, "png")
             XCTAssertEqual(file.filename, "1073704788400820324.png")
         }
@@ -2471,7 +2471,7 @@ class DiscordClientTests: XCTestCase {
                 guildId: "965874258054094878",
                 icon: "08b885eb2b03ee09fc906fa1a38cc1f8"
             ).getFile(overrideName: "guildIcon")
-            XCTAssertGreaterThan(file.data.readableBytes, 100)
+            XCTAssertGreaterThan(file.data.count, 100)
             XCTAssertEqual(file.extension, "png")
             XCTAssertEqual(file.filename, "guildIcon.png")
         }
@@ -2481,7 +2481,7 @@ class DiscordClientTests: XCTestCase {
                 guildId: "922186320275722322",
                 splash: "276ba186b5208a74344706941eb7fe8d"
             ).getFile()
-            XCTAssertGreaterThan(file.data.readableBytes, 100)
+            XCTAssertGreaterThan(file.data.count, 100)
         }
 
         do {
@@ -2489,7 +2489,7 @@ class DiscordClientTests: XCTestCase {
                 guildId: "922186320275722322",
                 splash: "178be4921b08b761d9d9d6117c6864e2"
             ).getFile()
-            XCTAssertGreaterThan(file.data.readableBytes, 100)
+            XCTAssertGreaterThan(file.data.count, 100)
         }
 
         do {
@@ -2497,7 +2497,7 @@ class DiscordClientTests: XCTestCase {
                 guildId: "922186320275722322",
                 banner: "6e2e4d93e102a997cc46d15c28b0dfa0"
             ).getFile()
-            XCTAssertGreaterThan(file.data.readableBytes, 100)
+            XCTAssertGreaterThan(file.data.count, 100)
         }
 
         //        do {
@@ -2512,7 +2512,7 @@ class DiscordClientTests: XCTestCase {
             let file = try await client.getCDNDefaultUserAvatar(
                 discriminator: 0517
             ).getFile()
-            XCTAssertGreaterThan(file.data.readableBytes, 100)
+            XCTAssertGreaterThan(file.data.count, 100)
             XCTAssertEqual(file.extension, "png")
         }
 
@@ -2543,7 +2543,7 @@ class DiscordClientTests: XCTestCase {
             let file = try await client.getCDNAvatarDecoration(
                 asset: avatarDecoration.asset
             ).getFile()
-            XCTAssertGreaterThan(file.data.readableBytes, 100)
+            XCTAssertGreaterThan(file.data.count, 100)
         }
         //
         //        do {
@@ -2565,7 +2565,7 @@ class DiscordClientTests: XCTestCase {
                 appId: "401518684763586560",
                 assetId: "920476458709819483"
             ).getFile()
-            XCTAssertGreaterThan(file.data.readableBytes, 100)
+            XCTAssertGreaterThan(file.data.count, 100)
         }
 
         //        do {
@@ -2595,7 +2595,7 @@ class DiscordClientTests: XCTestCase {
                 roleId: "984557789999407214",
                 icon: "2cba6c72f7abd52885359054e09ab7a2"
             ).getFile()
-            XCTAssertGreaterThan(file.data.readableBytes, 100)
+            XCTAssertGreaterThan(file.data.count, 100)
         }
 
         //
@@ -2613,14 +2613,14 @@ class DiscordClientTests: XCTestCase {
     }
 
     func testMultipartPayload() async throws {
-        let image = ByteBuffer(data: resource(name: "discordbm-logo.png"))
+        let image = ByteBuffer(bytes: resource(name: "discordbm-logo.png"))
 
         do {
             let response = try await client.createMessage(
                 channelId: Constants.Channels.spam.id,
                 payload: .init(
                     content: "Multipart message normal attachment!",
-                    files: [.init(data: image, filename: "discordbm.png")],
+                    files: [.init(data: Data(image.readableBytesView), filename: "discordbm.png")],
                     attachments: [.init(index: 0, description: "Test attachment!")]
                 )
             ).decode()
@@ -2643,7 +2643,7 @@ class DiscordClientTests: XCTestCase {
                 try await client
                 .getFromCDN(url: attachment.url)
                 .getFile()
-            XCTAssertGreaterThan(redownloaded.data.readableBytes, 100)
+            XCTAssertGreaterThan(redownloaded.data.count, 100)
         }
 
         do {
@@ -2658,7 +2658,7 @@ class DiscordClientTests: XCTestCase {
                             image: .init(url: .attachment(name: "discordbm.png"))
                         )
                     ],
-                    files: [.init(data: image, filename: "discordbm.png")]
+                    files: [.init(data: Data(image.readableBytesView), filename: "discordbm.png")]
                 )
             ).decode()
 
@@ -2678,7 +2678,7 @@ class DiscordClientTests: XCTestCase {
                 try await client
                 .getFromCDN(url: image.url.asString)
                 .getFile()
-            XCTAssertGreaterThan(redownloaded.data.readableBytes, 100)
+            XCTAssertGreaterThan(redownloaded.data.count, 100)
         }
 
         do {
@@ -2686,7 +2686,7 @@ class DiscordClientTests: XCTestCase {
                 channelId: Constants.Channels.spam.id,
                 payload: .init(
                     content: "Multipart message filename no extension!",
-                    files: [.init(data: image, filename: "discordbm")],
+                    files: [.init(data: Data(image.readableBytesView), filename: "discordbm")],
                     attachments: [.init(index: 0, filename: "discordbm")]
                 )
             ).decode()
@@ -2707,7 +2707,7 @@ class DiscordClientTests: XCTestCase {
         let counter = Counter(target: count)
 
         let client: any DiscordClient = await DefaultDiscordClient(
-            httpClient: httpClient,
+            
             token: Constants.token,
             /// Disable retrials.
             configuration: .init(retryPolicy: nil)
@@ -2751,7 +2751,6 @@ class DiscordClientTests: XCTestCase {
         let counter = Counter(target: count, timeout: 60)
 
         let client: any DiscordClient = await DefaultDiscordClient(
-            httpClient: httpClient,
             token: Constants.token
         )
 
@@ -2791,7 +2790,6 @@ class DiscordClientTests: XCTestCase {
             )
             let configuration = ClientConfiguration(cachingBehavior: cachingBehavior)
             let cacheClient: any DiscordClient = await DefaultDiscordClient(
-                httpClient: httpClient,
                 token: Constants.token,
                 configuration: configuration
             )
@@ -2833,7 +2831,6 @@ class DiscordClientTests: XCTestCase {
             )
             let configuration = ClientConfiguration(cachingBehavior: cachingBehavior)
             let cacheClient: any DiscordClient = await DefaultDiscordClient(
-                httpClient: httpClient,
                 token: Constants.token,
                 configuration: configuration
             )
@@ -2870,7 +2867,6 @@ class DiscordClientTests: XCTestCase {
         do {
             let configuration = ClientConfiguration(cachingBehavior: .disabled)
             let cacheClient: any DiscordClient = await DefaultDiscordClient(
-                httpClient: httpClient,
                 token: Constants.token,
                 configuration: configuration
             )
@@ -2918,7 +2914,6 @@ class DiscordClientTests: XCTestCase {
                 cachingBehavior: .enabled(defaultTTL: .seconds(10))
             )
             let cacheClient: any DiscordClient = await DefaultDiscordClient(
-                httpClient: httpClient,
                 token: Constants.token,
                 configuration: configuration
             )

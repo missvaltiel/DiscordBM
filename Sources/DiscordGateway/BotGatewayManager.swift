@@ -600,7 +600,7 @@ extension BotGatewayManager {
         do {
             let event = try DiscordGlobalConfiguration.decoder.decode(
                 Gateway.Event.self,
-                from: Data(buffer: buffer, byteTransferStrategy: .noCopy)
+                from: Data(buffer.readableBytesView)
             )
             self.logger.debug(
                 "Decoded event",
@@ -845,7 +845,7 @@ extension BotGatewayManager {
                             .custom(
                                 fin: true,
                                 opcode: opcode,
-                                data: ByteBuffer(data: data)
+                                data: ByteBuffer(bytes: data)
                             )
                         )
                     } catch {
